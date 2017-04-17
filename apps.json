@@ -4,6 +4,12 @@
             "name": "bin/elasticsearch",
             "dir": "/home/zj/codes/3pp/elasticsearch-5.2.2/",
             "args": []
+        },
+
+        {
+            "name": "bin/logstash",
+            "dir": "/home/zj/codes/3pp/logstash-5.2.2/",
+            "args": []
         }
     ]
 }

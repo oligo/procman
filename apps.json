@@ -1,14 +1,15 @@
 {
     "apps": [
+
         {
-            "name": "bin/elasticsearch",
-            "dir": "/home/zj/codes/3pp/elasticsearch-5.2.2/",
+            "executable": "/usr/local/bin/nsqlookupd",
+            "root": "",
             "args": []
         },
 
         {
-            "name": "bin/logstash",
-            "dir": "/home/zj/codes/3pp/logstash-5.2.2/",
+            "executable": "/usr/local/bin/nsqd",
+            "root": "",
             "args": []
         }
     ]

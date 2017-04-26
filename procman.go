@@ -1,14 +1,14 @@
 package main
 
 import (
-	"bufio"
+	//"bufio"
 	"github.com/spf13/viper"
 	"log"
 	"os"
 	"os/exec"
 	"sync"
-	"fmt"
-    "io"
+    //"io"
+    "fmt"
 )
 
 type App struct {
@@ -17,6 +17,36 @@ type App struct {
 	Args []string
 	*os.Process
 }
+
+type AppError struct {
+    // App executable name
+    Name string
+    // App PID
+    Pid int
+    // Error message
+    Message string
+}
+
+func (err AppError) Error() string {
+    return fmt.Sprintf("Process %s(PID %d) exited with error, details: %s\n", err.Name, err.Pid, err.Message)
+}
+
+type AppOutput struct {
+    // process id
+    Pid int
+    Msg []byte
+}
+
+func (o *AppOutput) push() {
+    o.msgchan <- o.Msg
+}
+
+func FlushOutput(pid int, msg []byte) {
+    out := AppOutput{Pid: pid, Msg: msg}
+    
+}
+
+
 
 func init() {
 	handleSignals()
@@ -35,7 +65,9 @@ func main() {
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, app *App) {
 			defer wg.Done()
-			RunApp(app)
+			if err := app.Run(); err != nil {
+                log.Printf("App quited with error: %s", err)
+            }
 		}(&wg, app)
 	}
     
@@ -43,68 +75,62 @@ func main() {
     wg.Wait()
 }
 
-func RunApp(app *App) {
-    if len(app.Executable) == 0 {
-        panic("App Executable is empty!")
-    }
-    
-	cmd := exec.Command(app.Executable)
-    if len(app.Root) > 0 {
-        cmd.Dir = app.Root
-    }
-    
-    //var stderr io.ReadCloser
-    var stdout io.ReadCloser
-    var err error
-    //stderr, err = cmd.StderrPipe()
-    stdout, err = cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal(err)
+
+func (app *App) Run() error {
+	if len(app.Executable) == 0 {
+		panic("App Executable is empty!")
 	}
-
-	scanner := bufio.NewScanner(stdout)
-	go func() {
-		for scanner.Scan() {
-			//TODO
-			fmt.Println(scanner.Text())
-		}
-		
-		if err := scanner.Err(); err != nil {
-			fmt.Fprintln(os.Stderr, "Error encountered while reading input:", err)
-		}
-	}()
-
+	
+	cmd := exec.Command(app.Executable)
+	if len(app.Root) > 0 {
+		cmd.Dir = app.Root
+	}
+	
+	////var stderr io.ReadCloser
+	//var stdout io.ReadCloser
+	//var err error
+	////stderr, err = cmd.StderrPipe()
+	//stdout, err = cmd.StdoutPipe()
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//
+	//scanner := bufio.NewScanner(stdout)
+	//go func() {
+	//	for scanner.Scan() {
+	//		//TODO
+	//		fmt.Println(scanner.Text())
+	//	}
+	//
+	//	if err := scanner.Err(); err != nil {
+	//		fmt.Fprintln(os.Stderr, "Error encountered while reading input:", err)
+	//	}
+	//}()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	
 	if err := cmd.Start(); err != nil {
 		log.Fatal(err)
 	}
-    
-    app.Process = cmd.Process
-    log.Printf("Process %s started with PID %d\n", app.Executable, app.Process.Pid)
-    
+	
+	app.Process = cmd.Process
+	log.Printf("Process %s started with PID %d\n", app.Executable, app.Process.Pid)
+	
 	if err := cmd.Wait(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
 			// command fails to run or doesn't complete successfully
 			procState := exitError.ProcessState
-			if procState.Exited() {
-				log.Printf("Process %s(PID %d) exited with error, details: %s\n", app.Executable, procState.Pid(), procState.String())
-				//os.Exit(1)
-			} else {
-				// Not exited?
-				log.Println("Process %d failed but NOT exited!", procState.Pid())
-				os.Exit(1)
-
-			}
-
+			if !procState.Exited() {
+                app.Process.Kill()
+            }
+            return AppError{ app.Executable, procState.Pid(), procState.String()}
+			
 		} else {
 			// Other types of error
-			log.Fatal(err)
-		}
-		return 
+            return AppError{ app.Executable, app.Process.Pid, err.Error()}
+            
+        }
 	}
-
-	
-	return 
+    
+	return nil
 }
-
-
-

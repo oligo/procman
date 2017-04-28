@@ -2,13 +2,14 @@ package main
 
 import (
 	//"bufio"
-	"github.com/spf13/viper"
 	"log"
 	"os"
 	"os/exec"
 	"sync"
     //"io"
     "fmt"
+    "syscall"
+    "errors"
 )
 
 type App struct {
@@ -31,34 +32,23 @@ func (err AppError) Error() string {
     return fmt.Sprintf("Process %s(PID %d) exited with error, details: %s\n", err.Name, err.Pid, err.Message)
 }
 
-type AppOutput struct {
-    // process id
-    Pid int
-    Msg []byte
-}
+//type AppOutput struct {
+//    // process id
+//    Pid int
+//    Msg []byte
+//}
+//
+//func (o *AppOutput) push() {
+//    o.msgchan <- o.Msg
+//}
+//
+//func FlushOutput(pid int, msg []byte) {
+//    out := AppOutput{Pid: pid, Msg: msg}
+//
+//}
 
-func (o *AppOutput) push() {
-    o.msgchan <- o.Msg
-}
 
-func FlushOutput(pid int, msg []byte) {
-    out := AppOutput{Pid: pid, Msg: msg}
-    
-}
-
-
-
-func init() {
-	handleSignals()
-	LoadConfig()
-}
-
-func main() {
-	apps := make([]*App, 0)
-	if err := viper.UnmarshalKey("apps", &apps); err != nil {
-		panic(err)
-	}
-
+func RunAll(apps []*App) {
 	var wg sync.WaitGroup
 	for _, app := range apps {
 		log.Printf("Starting %s\n", app.Executable)
@@ -75,13 +65,24 @@ func main() {
     wg.Wait()
 }
 
+func KillAll(apps []*App) {
+    for _, app := range apps {
+        if app.Process != nil {
+            if exitStatus := app.Quit(); exitStatus != nil {
+                log.Printf("Killing process %s with exit message: %s", app.Executable, exitStatus.Error())
+            }
+        }
+    }
+    return
+}
+
 
 func (app *App) Run() error {
 	if len(app.Executable) == 0 {
 		panic("App Executable is empty!")
 	}
-	
-	cmd := exec.Command(app.Executable)
+	log.Println(app.Args)
+	cmd := exec.Command(app.Executable, app.Args...)
 	if len(app.Root) > 0 {
 		cmd.Dir = app.Root
 	}
@@ -133,4 +134,26 @@ func (app *App) Run() error {
 	}
     
 	return nil
+}
+
+func (app *App) Quit() error {
+    if app.Process == nil || app.Process.Pid == 0 {
+        return errors.New("os: process not initialized")
+    }
+    
+    if app.Process.Pid == -1 {
+        return errors.New("os: process already released")
+    }
+    
+    if exitStatus := app.Process.Signal(syscall.SIGTERM); exitStatus != nil {
+        //if app.Process.Pid == -1 {
+        //    return errors.New("os: process already released")
+        //}
+        fmt.Printf("pid: %d, error: %s\n", app.Process.Pid, exitStatus)
+        app.Process.Kill()
+        return nil
+    }
+    fmt.Printf("Pid: %d exited successfully!\n", app.Process.Pid)
+    
+    return nil
 }

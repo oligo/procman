@@ -29,20 +29,18 @@ func handleSignals() {
 		case syscall.SIGINT:
 			// handle SIGINT
 			if handler, hasHandler := signalHandlers[sig]; hasHandler {
-                if handler() != nil {
-                    os.Exit(1)
-                }
-            }
+				if handler() != nil {
+					os.Exit(1)
+				}
+			}
 			os.Exit(0)
 		case syscall.SIGTERM:
-            if handler, hasHandler := signalHandlers[sig]; hasHandler {
-                if handler() != nil {
-                    os.Exit(1)
-                }
-            }
-            
-			os.Exit(0)			
+			if handler, hasHandler := signalHandlers[sig]; hasHandler {
+				if handler() != nil {
+					os.Exit(1)
+				}
+			}
+			os.Exit(0)
 		}
-
 	}()
 }

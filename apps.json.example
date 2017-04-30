@@ -10,7 +10,8 @@
         {
             "executable": "/usr/local/bin/nsqd",
             "root": "",
-            "args": []
+            "args": ["--lookupd-tcp-address", "4160"]
         }
+
     ]
 }
